@@ -1,0 +1,36 @@
+<configuration>
+
+    <!-- Console appender: concise format for interactive use -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss} [%-5level] %logger{25} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Rolling file appender: full detail, rotates daily, keeps 7 days -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/meditrack.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/meditrack.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} [%-5level] [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress noisy Logback internal warnings -->
+    <logger name="org.slf4j" level="WARN"/>
+
+    <!-- MediTrack root: INFO and above go to both console and file -->
+    <logger name="com.airtribe.meditrack" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Root fallback -->
+    <root level="WARN">
+        <appender-ref ref="FILE"/>
+    </root>
+
+</configuration>
