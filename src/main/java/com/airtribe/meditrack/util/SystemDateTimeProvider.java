@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 
 public class SystemDateTimeProvider implements DateTimeProvider {
 
+    private static final long serialVersionUID = 1L;
+
     // Singleton — eager initialization
     private static final SystemDateTimeProvider INSTANCE = new SystemDateTimeProvider();
 

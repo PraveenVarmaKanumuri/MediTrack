@@ -2,6 +2,7 @@ package com.airtribe.meditrack.entity;
 
 import com.airtribe.meditrack.entity.enums.AppointmentStatus;
 import com.airtribe.meditrack.exception.InvalidDataException;
+import com.airtribe.meditrack.util.Validator;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -9,6 +10,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Represents a clinic appointment between a patient and a doctor.
+ *
+ * <p>Status transitions follow a strict state machine enforced by
+ * {@link com.airtribe.meditrack.entity.enums.AppointmentStatus#canTransitionTo}:
+ * {@code PENDING → CONFIRMED → COMPLETED → PAID} (terminal),
+ * with {@code CANCELLED} reachable from {@code PENDING} or {@code CONFIRMED}.
+ *
+ * <p>{@link #deepClone()} uses the factory method to avoid the {@code final List} aliasing
+ * problem that would occur with a plain {@code super.clone()}.
+ */
 public class Appointment extends MedicalEntity implements Cloneable {
 
     private final String patientId;
@@ -22,24 +34,12 @@ public class Appointment extends MedicalEntity implements Cloneable {
     private Appointment(String id, String patientId, String doctorId,
                         LocalDate appointmentDate, LocalTime appointmentTime, String reason) {
         super(id);
-        if (patientId == null || patientId.isBlank()) {
-            throw new InvalidDataException("patientId", "cannot be null or empty");
-        }
-        if (doctorId == null || doctorId.isBlank()) {
-            throw new InvalidDataException("doctorId", "cannot be null or empty");
-        }
-        if (appointmentDate == null) {
-            throw new InvalidDataException("appointmentDate", "cannot be null");
-        }
-        if (appointmentDate.isBefore(LocalDate.now())) {
-            throw new InvalidDataException("appointmentDate", "cannot be in the past");
-        }
-        if (appointmentTime == null) {
-            throw new InvalidDataException("appointmentTime", "cannot be null");
-        }
-        if (reason == null || reason.isBlank()) {
-            throw new InvalidDataException("reason", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(patientId, "patientId");
+        Validator.requireNonBlank(doctorId, "doctorId");
+        Validator.requireNonNull(appointmentDate, "appointmentDate");
+        Validator.requireFutureDate(appointmentDate, "appointmentDate");
+        Validator.requireNonNull(appointmentTime, "appointmentTime");
+        Validator.requireNonBlank(reason, "reason");
         this.patientId = patientId;
         this.doctorId = doctorId;
         this.appointmentDate = appointmentDate;
@@ -58,18 +58,10 @@ public class Appointment extends MedicalEntity implements Cloneable {
     @Override
     public String getEntityType() { return "Appointment"; }
 
-    // Status transitions — uses enum's canTransitionTo logic
-    public void confirm() {
-        transitionTo(AppointmentStatus.CONFIRMED);
-    }
-
-    public void cancel() {
-        transitionTo(AppointmentStatus.CANCELLED);
-    }
-
-    public void complete() {
-        transitionTo(AppointmentStatus.COMPLETED);
-    }
+    public void confirm() { transitionTo(AppointmentStatus.CONFIRMED); }
+    public void cancel() { transitionTo(AppointmentStatus.CANCELLED); }
+    public void complete() { transitionTo(AppointmentStatus.COMPLETED); }
+    public void markBillPaid() { transitionTo(AppointmentStatus.PAID); }
 
     private void transitionTo(AppointmentStatus newStatus) {
         if (!status.canTransitionTo(newStatus)) {
@@ -81,15 +73,11 @@ public class Appointment extends MedicalEntity implements Cloneable {
         markUpdated();
     }
 
-    // Domain methods
     public void reschedule(LocalDate newDate, LocalTime newTime) {
-        if (newDate == null || newDate.isBefore(LocalDate.now())) {
-            throw new InvalidDataException("appointmentDate", "cannot be null or in the past");
-        }
-        if (newTime == null) {
-            throw new InvalidDataException("appointmentTime", "cannot be null");
-        }
-        if (!status.canTransitionTo(AppointmentStatus.CONFIRMED)) {
+        Validator.requireNonNull(newDate, "appointmentDate");
+        Validator.requireFutureDate(newDate, "appointmentDate");
+        Validator.requireNonNull(newTime, "appointmentTime");
+        if (status != AppointmentStatus.PENDING && status != AppointmentStatus.CONFIRMED) {
             throw new InvalidDataException("status",
                     "Cannot reschedule a cancelled or completed appointment");
         }
@@ -99,22 +87,30 @@ public class Appointment extends MedicalEntity implements Cloneable {
     }
 
     public void addNote(String note) {
-        if (note == null || note.isBlank()) {
-            throw new InvalidDataException("note", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(note, "note");
         notes.add(note);
         markUpdated();
     }
 
     public void updateReason(String reason) {
-        if (reason == null || reason.isBlank()) {
-            throw new InvalidDataException("reason", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(reason, "reason");
         this.reason = reason;
         markUpdated();
     }
 
-    // Shallow copy
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Appointment that = (Appointment) o;
+        return getId().equals(that.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getId().hashCode();
+    }
+
     @Override
     public Appointment clone() {
         try {
@@ -124,15 +120,15 @@ public class Appointment extends MedicalEntity implements Cloneable {
         }
     }
 
-    // Deep copy — notes list is fully independent
     public Appointment deepClone() {
-        Appointment copy = this.clone();
-        copy.notes.clear();
-        copy.notes.addAll(this.notes);
+        // Cannot reassign final List fields after super.clone() — both references point to the
+        // same ArrayList. Construct a fresh instance and copy state explicitly instead.
+        Appointment copy = Appointment.create(getId(), patientId, doctorId,
+                appointmentDate, appointmentTime, reason);
+        notes.forEach(copy::addNote);
         return copy;
     }
 
-    // Getters
     public String getPatientId() { return patientId; }
     public String getDoctorId() { return doctorId; }
     public LocalDate getAppointmentDate() { return appointmentDate; }
@@ -143,7 +139,8 @@ public class Appointment extends MedicalEntity implements Cloneable {
 
     @Override
     public String toString() {
-        return String.format("Appointment[%s] Patient: %s | Doctor: %s | Date: %s %s | Status: %s | Reason: %s",
+        return String.format(
+                "Appointment[%s] Patient: %s | Doctor: %s | Date: %s %s | Status: %s | Reason: %s",
                 getId(), patientId, doctorId, appointmentDate, appointmentTime,
                 status.getDisplayName(), reason);
     }

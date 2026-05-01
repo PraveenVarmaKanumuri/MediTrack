@@ -9,6 +9,11 @@ public class AppointmentNotFoundException extends RuntimeException {
         this.appointmentId =appointmentId;
 
     }
+    public AppointmentNotFoundException(String appointmentId) {
+        super("Appointment not found with ID: " + appointmentId);
+        this.appointmentId = appointmentId;
+    }
+
 
     public String getAppointmentId(){
         return  appointmentId;

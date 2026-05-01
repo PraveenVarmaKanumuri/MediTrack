@@ -9,9 +9,7 @@ public class StandardBillingStrategy implements BillingStrategy {
     @Override
     public double calculate(Bill bill) {
         double base = bill.getConsultationFee() + bill.getAdditionalCharges();
-        double afterDiscount = base - (base * bill.getDiscountPercent() / 100);
-        double tax = afterDiscount * Constants.TAX_RATE;
-        return afterDiscount + tax;
+        return base - (base * bill.getDiscountPercent() / 100);
     }
 
     @Override

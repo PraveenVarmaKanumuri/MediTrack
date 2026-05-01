@@ -1,10 +1,19 @@
 package com.airtribe.meditrack.entity;
 
-import com.airtribe.meditrack.exception.InvalidDataException;
+import com.airtribe.meditrack.constants.Constants;
 import com.airtribe.meditrack.interfaces.BillingStrategy;
 import com.airtribe.meditrack.interfaces.Payable;
 import com.airtribe.meditrack.strategy.StandardBillingStrategy;
+import com.airtribe.meditrack.util.Validator;
 
+/**
+ * A bill associated with a completed appointment, built via the inner {@link Builder}.
+ *
+ * <p>The total amount is calculated by the injected {@link com.airtribe.meditrack.interfaces.BillingStrategy},
+ * which can be swapped at runtime via {@link #switchStrategy}. Tax is applied on top of the
+ * strategy-calculated subtotal. Call {@link #generateSummary()} to produce an immutable
+ * {@link BillSummary} snapshot suitable for display or serialization.
+ */
 public class Bill extends MedicalEntity implements Payable {
 
     private final String patientId;
@@ -16,7 +25,6 @@ public class Bill extends MedicalEntity implements Payable {
     private boolean paid;
     private BillingStrategy billingStrategy;
 
-    // Private constructor — only Builder creates Bill
     private Bill(Builder builder) {
         super(builder.id);
         this.patientId = builder.patientId;
@@ -29,33 +37,21 @@ public class Bill extends MedicalEntity implements Payable {
         this.billingStrategy = builder.billingStrategy;
     }
 
-    // Builder
     public static class Builder {
-        // Required fields
         private final String id;
         private final String patientId;
         private final String appointmentId;
         private final double consultationFee;
-
-        // Optional fields with defaults
         private double additionalCharges = 0.0;
         private double discountPercent = 0.0;
         private String notes = "";
         private BillingStrategy billingStrategy = new StandardBillingStrategy();
 
         public Builder(String id, String patientId, String appointmentId, double consultationFee) {
-            if (id == null || id.isBlank()) {
-                throw new InvalidDataException("id", "cannot be null or empty");
-            }
-            if (patientId == null || patientId.isBlank()) {
-                throw new InvalidDataException("patientId", "cannot be null or empty");
-            }
-            if (appointmentId == null || appointmentId.isBlank()) {
-                throw new InvalidDataException("appointmentId", "cannot be null or empty");
-            }
-            if (consultationFee < 0) {
-                throw new InvalidDataException("consultationFee", "cannot be negative");
-            }
+            Validator.requireNonBlank(id, "id");
+            Validator.requireNonBlank(patientId, "patientId");
+            Validator.requireNonBlank(appointmentId, "appointmentId");
+            Validator.requirePositive(consultationFee, "consultationFee");
             this.id = id;
             this.patientId = patientId;
             this.appointmentId = appointmentId;
@@ -63,17 +59,13 @@ public class Bill extends MedicalEntity implements Payable {
         }
 
         public Builder additionalCharges(double additionalCharges) {
-            if (additionalCharges < 0) {
-                throw new InvalidDataException("additionalCharges", "cannot be negative");
-            }
+            Validator.requirePositive(additionalCharges, "additionalCharges");
             this.additionalCharges = additionalCharges;
             return this;
         }
 
         public Builder discountPercent(double discountPercent) {
-            if (discountPercent < 0 || discountPercent > 100) {
-                throw new InvalidDataException("discountPercent", "must be between 0 and 100");
-            }
+            Validator.requireInRange(discountPercent, 0, 100, "discountPercent");
             this.discountPercent = discountPercent;
             return this;
         }
@@ -84,9 +76,7 @@ public class Bill extends MedicalEntity implements Payable {
         }
 
         public Builder billingStrategy(BillingStrategy billingStrategy) {
-            if (billingStrategy == null) {
-                throw new InvalidDataException("billingStrategy", "cannot be null");
-            }
+            Validator.requireNonNull(billingStrategy, "billingStrategy");
             this.billingStrategy = billingStrategy;
             return this;
         }
@@ -99,17 +89,26 @@ public class Bill extends MedicalEntity implements Payable {
     @Override
     public String getEntityType() { return "Bill"; }
 
-    // Payable implementation
     @Override
     public double calculateTotal() {
-        return billingStrategy.calculate(this);
+        return billingStrategy.calculate(this) + calculateTax();
+    }
+
+    @Override
+    public double calculateTax() {
+        // Call billingStrategy directly (not calculateTotal) to avoid circular recursion
+        return billingStrategy.calculate(this) * Constants.TAX_RATE;
+    }
+
+    @Override
+    public BillSummary generateBill() {
+        markAsPaid();
+        return generateSummary();
     }
 
     @Override
     public void applyDiscount(double discountPercent) {
-        if (discountPercent < 0 || discountPercent > 100) {
-            throw new InvalidDataException("discountPercent", "must be between 0 and 100");
-        }
+        Validator.requireInRange(discountPercent, 0, 100, "discountPercent");
         this.discountPercent = discountPercent;
         markUpdated();
     }
@@ -117,44 +116,30 @@ public class Bill extends MedicalEntity implements Payable {
     @Override
     public boolean isPaid() { return paid; }
 
-    // Domain methods
     public void markAsPaid() {
         this.paid = true;
         markUpdated();
     }
 
     public void switchStrategy(BillingStrategy billingStrategy) {
-        if (billingStrategy == null) {
-            throw new InvalidDataException("billingStrategy", "cannot be null");
-        }
+        Validator.requireNonNull(billingStrategy, "billingStrategy");
         this.billingStrategy = billingStrategy;
         markUpdated();
     }
 
     public void addAdditionalCharges(double amount) {
-        if (amount < 0) {
-            throw new InvalidDataException("additionalCharges", "cannot be negative");
-        }
+        Validator.requirePositive(amount, "additionalCharges");
         this.additionalCharges += amount;
         markUpdated();
     }
 
-    // Generate immutable summary — call this when finalizing payment
     public BillSummary generateSummary() {
         return new BillSummary(
-                getId(),
-                patientId,
-                appointmentId,
-                consultationFee,
-                additionalCharges,
-                discountPercent,
-                calculateTotal(),
-                billingStrategy.getStrategyName(),
-                paid
-        );
+                getId(), patientId, appointmentId,
+                consultationFee, additionalCharges, discountPercent,
+                calculateTotal(), calculateTax(),billingStrategy.getStrategyName(), paid);
     }
 
-    // Getters — needed by BillingStrategy
     public String getPatientId() { return patientId; }
     public String getAppointmentId() { return appointmentId; }
     public double getConsultationFee() { return consultationFee; }
@@ -162,6 +147,19 @@ public class Bill extends MedicalEntity implements Payable {
     public double getDiscountPercent() { return discountPercent; }
     public String getNotes() { return notes; }
     public BillingStrategy getBillingStrategy() { return billingStrategy; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Bill that = (Bill) o;
+        return getId().equals(that.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getId().hashCode();
+    }
 
     @Override
     public String toString() {

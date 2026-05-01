@@ -1,13 +1,21 @@
 package com.airtribe.meditrack.entity;
 
 import com.airtribe.meditrack.entity.enums.BloodGroup;
-import com.airtribe.meditrack.exception.InvalidDataException;
+import com.airtribe.meditrack.util.Validator;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Represents a clinic patient with blood group, medical history, and an emergency contact.
+ *
+ * <p>Medical history entries and appointment IDs are append-only through validated mutators.
+ * {@link #deepClone()} constructs a fully independent copy by using the factory method;
+ * {@code super.clone()} alone is insufficient because {@code final List} fields cannot
+ * be reassigned after a shallow clone.
+ */
 public class Patient extends Person implements Cloneable {
 
     private BloodGroup bloodGroup;
@@ -18,12 +26,8 @@ public class Patient extends Person implements Cloneable {
     private Patient(String id, String name, LocalDate dateOfBirth, String email,
                     String phone, BloodGroup bloodGroup, EmergencyContact emergencyContact) {
         super(id, name, dateOfBirth, email, phone);
-        if (bloodGroup == null) {
-            throw new InvalidDataException("bloodGroup", "cannot be null");
-        }
-        if (emergencyContact == null) {
-            throw new InvalidDataException("emergencyContact", "cannot be null");
-        }
+        Validator.requireNonNull(bloodGroup, "bloodGroup");
+        Validator.requireNonNull(emergencyContact, "emergencyContact");
         this.bloodGroup = bloodGroup;
         this.emergencyContact = emergencyContact;
         this.medicalHistory = new ArrayList<>();
@@ -39,35 +43,26 @@ public class Patient extends Person implements Cloneable {
     @Override
     public String getRole() { return "Patient"; }
 
-    // Domain methods
     public void addMedicalHistory(String entry) {
-        if (entry == null || entry.isBlank()) {
-            throw new InvalidDataException("medicalHistory", "entry cannot be null or empty");
-        }
+        Validator.requireNonBlank(entry, "medicalHistory");
         medicalHistory.add(entry);
         markUpdated();
     }
 
     public void updateEmergencyContact(EmergencyContact emergencyContact) {
-        if (emergencyContact == null) {
-            throw new InvalidDataException("emergencyContact", "cannot be null");
-        }
+        Validator.requireNonNull(emergencyContact, "emergencyContact");
         this.emergencyContact = emergencyContact;
         markUpdated();
     }
 
     public void updateBloodGroup(BloodGroup bloodGroup) {
-        if (bloodGroup == null) {
-            throw new InvalidDataException("bloodGroup", "cannot be null");
-        }
+        Validator.requireNonNull(bloodGroup, "bloodGroup");
         this.bloodGroup = bloodGroup;
         markUpdated();
     }
 
     public void addAppointmentId(String appointmentId) {
-        if (appointmentId == null || appointmentId.isBlank()) {
-            throw new InvalidDataException("appointmentId", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(appointmentId, "appointmentId");
         appointmentIds.add(appointmentId);
         markUpdated();
     }
@@ -77,7 +72,6 @@ public class Patient extends Person implements Cloneable {
         markUpdated();
     }
 
-    // Shallow copy — medicalHistory and appointmentIds lists are shared
     @Override
     public Patient clone() {
         try {
@@ -87,24 +81,21 @@ public class Patient extends Person implements Cloneable {
         }
     }
 
-    // Deep copy — all lists are fully independent
     public Patient deepClone() {
-        Patient copy = this.clone();
-        copy.medicalHistory.clear();
-        copy.medicalHistory.addAll(this.medicalHistory);
-        copy.appointmentIds.clear();
-        copy.appointmentIds.addAll(this.appointmentIds);
+        // Cannot reassign final List fields after super.clone() — both references point to the
+        // same ArrayList. Construct a fresh instance and copy state explicitly instead.
+        Patient copy = Patient.create(getId(), getName(), getDateOfBirth(),
+                getEmail(), getPhone(), bloodGroup, emergencyContact);
+        medicalHistory.forEach(copy::addMedicalHistory);
+        appointmentIds.forEach(copy::addAppointmentId);
         return copy;
     }
 
-    // Getters
     public BloodGroup getBloodGroup() { return bloodGroup; }
     public EmergencyContact getEmergencyContact() { return emergencyContact; }
-
     public List<String> getMedicalHistory() {
         return Collections.unmodifiableList(medicalHistory);
     }
-
     public List<String> getAppointmentIds() {
         return Collections.unmodifiableList(appointmentIds);
     }

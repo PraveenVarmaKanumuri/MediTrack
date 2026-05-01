@@ -1,20 +1,33 @@
 package com.airtribe.meditrack.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Eager singleton that generates sequential, prefixed entity IDs.
+ *
+ * <p>The single instance is created in a {@code static} initializer block, which the
+ * JVM guarantees runs exactly once under the class-loading lock — making this
+ * approach inherently thread-safe without explicit synchronization.
+ * Counters use {@link java.util.concurrent.atomic.AtomicInteger} for lock-free
+ * thread-safety when IDs are generated concurrently.
+ */
 public class IdGenerator {
 
+    private static final Logger logger = LoggerFactory.getLogger(IdGenerator.class);
+    private static final IdGenerator INSTANCE;
 
-    private static final IdGenerator INSTANCE = new IdGenerator();
+    static {
+        INSTANCE = new IdGenerator();
+        logger.info("Singleton initialized (eager static block)");
+    }
 
     private final AtomicInteger patientCounter;
     private final AtomicInteger doctorCounter;
     private final AtomicInteger appointmentCounter;
     private final AtomicInteger billCounter;
-
-    static {
-        System.out.println("[IdGenerator] Initialized via static block on class load");
-    }
 
     private IdGenerator() {
         patientCounter = new AtomicInteger(0);

@@ -1,4 +1,11 @@
 package com.airtribe.meditrack.interfaces;
 
-public class AppointmentObserver {
+import com.airtribe.meditrack.entity.Appointment;
+
+public interface AppointmentObserver {
+    void onAppointmentCreated(Appointment appointment);
+    void onAppointmentConfirmed(Appointment appointment);
+    void onAppointmentCancelled(Appointment appointment);
+    void onAppointmentCompleted(Appointment appointment);
+    void onAppointmentRescheduled(Appointment appointment);
 }

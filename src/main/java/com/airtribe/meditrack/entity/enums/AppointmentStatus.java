@@ -17,13 +17,19 @@ public enum AppointmentStatus {
     CANCELLED("Cancelled") {
         @Override
         public boolean canTransitionTo(AppointmentStatus next) {
-            return false; // terminal state
+            return false;
         }
     },
     COMPLETED("Completed") {
         @Override
         public boolean canTransitionTo(AppointmentStatus next) {
-            return false; // terminal state
+            return next == PAID;
+        }
+    },
+    PAID("Paid") {
+        @Override
+        public boolean canTransitionTo(AppointmentStatus next) {
+            return false;
         }
     };
 

@@ -1,6 +1,5 @@
 package com.airtribe.meditrack.strategy;
 
-import com.airtribe.meditrack.constants.Constants;
 import com.airtribe.meditrack.entity.Bill;
 import com.airtribe.meditrack.interfaces.BillingStrategy;
 
@@ -16,9 +15,7 @@ public class InsuranceBillingStrategy implements BillingStrategy {
     public double calculate(Bill bill) {
         double base = bill.getConsultationFee() + bill.getAdditionalCharges();
         double afterDiscount = base - (base * bill.getDiscountPercent() / 100);
-        double afterInsurance = afterDiscount - (afterDiscount * coveragePercent / 100);
-        double tax = afterInsurance * Constants.TAX_RATE;
-        return afterInsurance + tax;
+        return afterDiscount - (afterDiscount * coveragePercent / 100);
     }
 
     @Override

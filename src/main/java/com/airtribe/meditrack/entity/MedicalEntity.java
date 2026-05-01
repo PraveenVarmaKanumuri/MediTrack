@@ -3,10 +3,21 @@ package com.airtribe.meditrack.entity;
 import com.airtribe.meditrack.exception.InvalidDataException;
 import com.airtribe.meditrack.interfaces.DateTimeProvider;
 import com.airtribe.meditrack.util.SystemDateTimeProvider;
+import com.airtribe.meditrack.util.Validator;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
-public abstract class MedicalEntity {
+/**
+ * Base class for all domain entities in MediTrack.
+ *
+ * <p>Provides a universally unique {@code id}, creation/update audit timestamps via
+ * an injected {@link com.airtribe.meditrack.interfaces.DateTimeProvider}, and Java
+ * serialization support. Subclasses must implement {@link #getEntityType()}.
+ */
+public abstract class MedicalEntity implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final String id;
     private final LocalDateTime createdAt;
@@ -18,9 +29,8 @@ public abstract class MedicalEntity {
     }
 
     protected MedicalEntity(String id, DateTimeProvider dateTimeProvider) {
-        if (id == null || id.isBlank()) {
-            throw new InvalidDataException("id", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(id, "id");
+        Validator.requireNonNull(dateTimeProvider, "dateTimeProvider");
         this.id = id;
         this.dateTimeProvider = dateTimeProvider;
         this.createdAt = dateTimeProvider.now();

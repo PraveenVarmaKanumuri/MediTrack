@@ -3,7 +3,11 @@ package com.airtribe.meditrack.entity;
 import com.airtribe.meditrack.entity.enums.Relationship;
 import com.airtribe.meditrack.exception.InvalidDataException;
 
-public class EmergencyContact {
+import java.io.Serializable;
+
+public class EmergencyContact implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final String name;
     private final String phone;

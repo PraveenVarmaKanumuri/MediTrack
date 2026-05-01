@@ -2,9 +2,16 @@ package com.airtribe.meditrack.entity;
 
 import com.airtribe.meditrack.exception.InvalidDataException;
 import com.airtribe.meditrack.util.DateUtil;
+import com.airtribe.meditrack.util.Validator;
 
 import java.time.LocalDate;
 
+/**
+ * Abstract person entity with personal details shared by {@link Doctor} and {@link Patient}.
+ *
+ * <p>Equality is keyed on {@code id} so that the same person object is equal across
+ * collection lookups regardless of mutable field changes.
+ */
 public abstract class Person extends MedicalEntity {
 
     private String name;
@@ -14,18 +21,10 @@ public abstract class Person extends MedicalEntity {
 
     protected Person(String id, String name, LocalDate dateOfBirth, String email, String phone) {
         super(id);
-        if (name == null || name.isBlank()) {
-            throw new InvalidDataException("name", "cannot be null or empty");
-        }
-        if (dateOfBirth == null || dateOfBirth.isAfter(LocalDate.now())) {
-            throw new InvalidDataException("dateOfBirth", "cannot be null or in the future");
-        }
-        if (email == null || !email.contains("@")) {
-            throw new InvalidDataException("email", "invalid email format");
-        }
-        if (phone == null || phone.isBlank()) {
-            throw new InvalidDataException("phone", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(name, "name");
+        Validator.requirePastDate(dateOfBirth, "dateOfBirth");
+        Validator.requireValidEmail(email, "email");
+        Validator.requireNonBlank(phone, "phone");
         this.name = name;
         this.dateOfBirth = dateOfBirth;
         this.email = email;
@@ -40,41 +39,34 @@ public abstract class Person extends MedicalEntity {
     }
 
     public void updateName(String name) {
-        if (name == null || name.isBlank()) {
-            throw new InvalidDataException("name", "cannot be null or empty");
-        }
+        Validator.requireNonBlank(name, "name");
         this.name = name;
         markUpdated();
     }
 
     public void updateContactInfo(String email, String phone) {
-        if (email == null || !email.contains("@")) {
-            throw new InvalidDataException("email", "invalid email format");
-        }
-        if (phone == null || phone.isBlank()) {
-            throw new InvalidDataException("phone", "cannot be null or empty");
-        }
+        Validator.requireValidEmail(email, "email");
+        Validator.requireNonBlank(phone, "phone");
         this.email = email;
         this.phone = phone;
         markUpdated();
     }
 
     public void updateDateOfBirth(LocalDate dateOfBirth) {
-        if (dateOfBirth == null || dateOfBirth.isAfter(LocalDate.now())) {
-            throw new InvalidDataException("dateOfBirth", "cannot be null or in the future");
-        }
+        Validator.requirePastDate(dateOfBirth, "dateOfBirth");
         this.dateOfBirth = dateOfBirth;
         markUpdated();
     }
 
     public String getDisplayInfo() {
-        return String.format("[%s] %s | DOB: %s | Age: %d | Email: %s | Phone: %s",
+        return String.format("[%s] ID: %s | %s | DOB: %s | Age: %d | Email: %s | Phone: %s",
                 getRole(),
-                name,
-                DateUtil.format(dateOfBirth),
-                DateUtil.calculateAge(dateOfBirth),
-                email,
-                phone);
+                getId(),
+                getName(),
+                DateUtil.format(getDateOfBirth()),
+                getAge(),
+                getEmail(),
+                getPhone());
     }
 
     public String getName() { return name; }
